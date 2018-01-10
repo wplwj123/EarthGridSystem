@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="java">
+    <CLASSES>
+      <root url="file://D:/Repositories/GDAL_Java/bin/gdal/java" />
+    </CLASSES>
+    <JAVADOC />
+    <NATIVE>
+      <root url="file://D:/Repositories/GDAL_Java/bin/gdal/java" />
+    </NATIVE>
+    <SOURCES />
+    <jarDirectory url="file://D:/Repositories/GDAL_Java/bin/gdal/java" recursive="false" />
+  </library>
+</component>

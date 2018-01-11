@@ -32,6 +32,7 @@ public class FieldLayer extends BaseLayer {
      */
     public FieldLayer(String name, int level, BaseCode.CodeType codeType) {
         super(name, level, codeType, LayerType.FieldLayer);
+        bands = new ArrayList<>();
     }
 
     /**

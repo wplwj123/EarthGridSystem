@@ -32,7 +32,7 @@ public class ShapeReaderWriter {
      */
     public static FeatureLayer ReadShapefile(String fileName){
 
-        // register all driver
+        // register all ogr driver
         ogr.RegisterAll();
 
         // support Chinese
@@ -96,6 +96,8 @@ public class ShapeReaderWriter {
                     break;
             }
         }
+
+        gdal.GDALDestroyDriverManager();
 
         return featureLayer;
     }

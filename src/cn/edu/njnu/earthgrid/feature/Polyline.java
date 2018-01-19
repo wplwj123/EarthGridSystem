@@ -1,5 +1,9 @@
 package cn.edu.njnu.earthgrid.feature;
 
+import cn.edu.njnu.earthgrid.core.codes.BaseCode;
+import cn.edu.njnu.earthgrid.core.geometry.MathUtil;
+import cn.edu.njnu.earthgrid.core.geometry.SpericalCoord;
+
 import java.util.ArrayList;
 
 /**
@@ -39,8 +43,8 @@ public class Polyline extends Geometry {
      *
      * @return
      */
-    public ArrayList<Point> getPoints() {
-        return this.points;
+    public Point getPoint(int index) {
+        return this.points.get(index);
     }
 
     /**
@@ -141,5 +145,157 @@ public class Polyline extends Geometry {
         } else {
             return false;
         }
+    }
+
+    /**
+     * weather this polygon contains the point or polyline
+     * if geometry if polygon, return false
+     *
+     * @param geometry
+     * @return
+     */
+    @Override
+    public boolean Contains(Geometry geometry) {
+        if(!getExtend().Contains(geometry))
+            return false;
+
+        ArrayList<BaseCode> codes = MathUtil.getCodesInPolyline(this);
+
+        if(ShapeType.Point == geometry.getShapeType()){
+            Point point = (Point) geometry;
+            if(codes.contains(point.getPosition())){
+                return true;
+            }
+        }
+        else if(ShapeType.Polyline == geometry.getShapeType()){
+            Polyline polyline = (Polyline) geometry;
+            ArrayList<BaseCode> codes2 = MathUtil.getCodesInPolyline(this);
+
+            for(int i = 0; i < codes2.size(); ++i){
+                if(!codes.contains(codes2.get(i)))
+                    return false;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * polyline can within polygon and polyline
+     *
+     * @param geometry
+     * @return
+     */
+    @Override
+    public boolean Within(Geometry geometry) {
+        if(ShapeType.Polygon == geometry.getShapeType()){
+            if(geometry.Contains(this))
+                return true;
+        }
+        else if(ShapeType.Polyline == geometry.getShapeType()){
+            Polyline polyline = (Polyline) geometry;
+
+            ArrayList<BaseCode> codes = MathUtil.getCodesInPolyline(polyline);
+            ArrayList<BaseCode> codes2 = MathUtil.getCodesInPolyline(this);
+
+            for(int i = 0; i < codes2.size(); ++i){
+                if(!codes.contains(codes2.get(i)))
+                    return false;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean Disjoint(Geometry geometry) {
+        if(!getExtend().Contains(geometry))
+            return true;
+
+        if(ShapeType.Point == geometry.getShapeType()){
+            return !this.Contains(geometry);
+        }
+        else if(ShapeType.Polygon == geometry.getShapeType()){
+            return geometry.Disjoint(this);
+        }
+        else if(ShapeType.Polyline == geometry.getShapeType()){
+            Polyline polyline = (Polyline) geometry;
+
+            ArrayList<BaseCode> codes = MathUtil.getCodesInPolyline(polyline);
+            ArrayList<BaseCode> codes2 = MathUtil.getCodesInPolyline(this);
+
+            for(int i = 0; i < codes2.size(); ++i){
+                if(codes.contains(codes2.get(i)))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    @Override
+    public boolean Overlaps(Geometry geometry) {
+        if(ShapeType.Polyline == geometry.getShapeType()){
+            Polyline polyline = (Polyline) geometry;
+
+            ArrayList<BaseCode> codes = MathUtil.getCodesInPolyline(polyline);
+            ArrayList<BaseCode> codes2 = MathUtil.getCodesInPolyline(this);
+
+            int nDisjoint = 0;
+            int nContain = 0;
+            for(int i = 0; i < codes2.size(); ++i){
+                if(!codes.contains(codes2.get(i)))
+                    ++nDisjoint;
+                else
+                    ++nContain;
+
+                if(nDisjoint > 0 && nContain > 1){
+                    return true;
+                }
+            }
+
+        }
+        else if(ShapeType.Polygon == geometry.getShapeType()){
+            return geometry.Overlaps(this);
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if(!(obj instanceof Polyline))
+            return false;
+        return super.equals(obj) && points.equals(((Polyline) obj).points);
+    }
+
+    @Override
+    public String toString() {
+        String str = "(";
+        str = str + getExtend().toString() + ",";
+        for(int i = 0; i < getPointNum() - 1; ++i){
+            str = str + points.get(i).toString() + ",";
+        }
+        str = str + getLastPoint().toString() + ")";
+
+        return str;
+    }
+
+    public static Polyline FormString(String polylineStr){
+        polylineStr = polylineStr.substring(1, polylineStr.length() - 1);    //remove ( & )
+        String[] pointsStr = polylineStr.split(",");
+
+        Polyline polyline = new Polyline();
+        polyline.setExtend(Extent.FromString(pointsStr[0], pointsStr[1], pointsStr[2], pointsStr[3]));
+
+        for(int i = 4; i < pointsStr.length; ++i){
+            polyline.addPoint(Point.FromString(pointsStr[i]));
+        }
+
+        return polyline;
     }
 }

@@ -65,9 +65,9 @@ public class DiamondBlock {
     }
 
     /**
-     * convert vertexes's Cartesian Coord to GeoCoord
+     * convert vertexes's Cartesian Coord to SpericalCoord
      *
-     * @return GeoCoord array of vertexes
+     * @return SpericalCoord array of vertexes
      */
     public SpericalCoord[] toSpericalCoord() {
         SpericalCoord[] gcs = new SpericalCoord[4];

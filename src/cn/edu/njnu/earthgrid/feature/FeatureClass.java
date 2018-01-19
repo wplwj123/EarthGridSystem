@@ -9,18 +9,16 @@ import java.util.ArrayList;
  * @version EGS 1.0
  */
 public class FeatureClass {
-    private FeatureType featureType;
+
     private ShapeType shapeType;
     private ArrayList<Field> fields;
 
     public FeatureClass() {
-        featureType = FeatureType.SimpleFeature;
         shapeType = ShapeType.Unknown;
         this.fields = new ArrayList<>();
     }
 
-    public FeatureClass(FeatureType featureType, ShapeType shapeType) {
-        this.featureType = featureType;
+    public FeatureClass(ShapeType shapeType) {
         this.shapeType = shapeType;
         this.fields = new ArrayList<>();
     }
@@ -38,10 +36,6 @@ public class FeatureClass {
     }
 
     public ArrayList<Field> getFields() {
-        ArrayList<Field> fields = new ArrayList<>();
-        for(int i = 0; i < this.fields.size(); ++i){
-            fields.add(this.fields.get(i));
-        }
         return fields;
     }
 

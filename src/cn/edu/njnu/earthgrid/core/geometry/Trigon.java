@@ -47,6 +47,19 @@ public class Trigon {
     }
 
     /**
+     * convert vertexes's Cartesian Coord to SpericalCoord
+     *
+     * @return SpericalCoord array of vertexes
+     */
+    public SpericalCoord[] toSpericalCoord() {
+        SpericalCoord[] gcs = new SpericalCoord[3];
+        gcs[0] = SpericalCoord.FromCartesianCoord(v[0]);
+        gcs[1] = SpericalCoord.FromCartesianCoord(v[1]);
+        gcs[2] = SpericalCoord.FromCartesianCoord(v[2]);
+        return gcs;
+    }
+
+    /**
      * change vertxes's value
      * @param v0 top vertex
      * @param v1 left vertex

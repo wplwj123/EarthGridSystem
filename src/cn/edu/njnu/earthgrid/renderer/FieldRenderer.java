@@ -21,6 +21,7 @@ import java.util.ArrayList;
 
 /**
  * renderer for grid field layer
+ * only support EQTM
  *
  * @author LWJie
  * @version EGS 1.0
@@ -36,43 +37,107 @@ public class FieldRenderer extends BaseRenderer {
     }
 
     @Override
-    public RenderableLayer[] getWWRenderableLayer() {
+    public RenderableLayer getWWRenderableLayer() {
         if(null == fieldLayer)
             return null;
 
-        RenderableLayer[] layers = new RenderableLayer[fieldLayer.getBandNum()];
-
-        for(int bandID = 0; bandID < fieldLayer.getBandNum(); ++bandID){
-            RenderableLayer layer;
-            switch (fieldLayer.getBands(bandID).getElementType()){
-                case GridNode:
-                    layer = NodeRenderer(bandID);
-                    break;
-                case GridEdge:
-                    layer = EdgeRenderer(bandID);
-                    break;
-                case GridCell:
-                    layer = CellRenderer(bandID);
-                    break;
-                default:
-                    layer = null;
-                    break;
-            }
-            layers[bandID] = layer;
+        RenderableLayer layer;
+        if(fieldLayer.getBandNum() == 1){
+            layer = DEMRenderer();
+        }
+        else {
+            layer = ImageRenderer();
         }
 
-        final FieldBand band = fieldLayer.getBands(0);
-
-        return layers;
+        return layer;
     }
 
-    private RenderableLayer NodeRenderer(int bandID){
-        final FieldBand band = fieldLayer.getBands(bandID);
+    private RenderableLayer ImageRenderer(){
+        if(fieldLayer.getBandNum() != 3){
+            return null;
+        }
+
+        final FieldBand rBand = fieldLayer.getBands(0);
+        final FieldBand gBand = fieldLayer.getBands(1);
+        final FieldBand bBand = fieldLayer.getBands(2);
+
+        RenderableLayer renderableLayer = new RenderableLayer();
+        renderableLayer.setName(fieldLayer.getName());
+        renderableLayer.setPickEnabled(false);
+        double elevation = 30000.;
+
+
+        for(int domID = 0; domID < rBand.getMBSCount(); ++domID){
+            FieldBand.MinBoundSeg mbs = rBand.getMBS(domID);
+            EQCode offset = mbs.getOffset();
+            long size = mbs.getSize();
+
+            EQCode code = new EQCode(offset);
+
+            for(int i = 0; i < size / 2; ++i){
+                int rUpperAttr = (int)rBand.getAttribute(domID, i * 2);
+                int gUpperAttr = (int)gBand.getAttribute(domID, i * 2);
+                int bUpperAttr = (int)bBand.getAttribute(domID, i * 2);
+                int rLowerAttr = (int)rBand.getAttribute(domID, i * 2 + 1);
+                int gLowerAttr = (int)gBand.getAttribute(domID, i * 2 + 1);
+                int bLowerAttr = (int)bBand.getAttribute(domID, i * 2 + 1);
+
+                code.setMorton(offset.getMorton() + i);
+                SpericalCoord[] v = code.toDiamond().toSpericalCoord();
+
+                //draw upper trigon cell
+                ArrayList<Position> uPositions = new ArrayList<Position>();
+                uPositions.add(new Position(Angle.fromDegrees(v[0].getLatitude()),Angle.fromDegrees(v[0].getLongitude()),elevation));
+                uPositions.add(new Position(Angle.fromDegrees(v[1].getLatitude()),Angle.fromDegrees(v[1].getLongitude()),elevation));
+                uPositions.add(new Position(Angle.fromDegrees(v[3].getLatitude()),Angle.fromDegrees(v[3].getLongitude()),elevation));
+
+                Polygon upperTrigon = new Polygon(uPositions);
+                SetDefaultMaterial(upperTrigon, rUpperAttr, gUpperAttr, bUpperAttr);
+                renderableLayer.addRenderable(upperTrigon);
+
+                //draw lower trigon cell
+                ArrayList<Position> lPositions = new ArrayList<Position>();
+                lPositions.add(new Position(Angle.fromDegrees(v[2].getLatitude()),Angle.fromDegrees(v[2].getLongitude()),elevation));
+                lPositions.add(new Position(Angle.fromDegrees(v[1].getLatitude()),Angle.fromDegrees(v[1].getLongitude()),elevation));
+                lPositions.add(new Position(Angle.fromDegrees(v[3].getLatitude()),Angle.fromDegrees(v[3].getLongitude()),elevation));
+
+                Polygon lowerTrigon = new Polygon(lPositions);
+                SetDefaultMaterial(lowerTrigon, rLowerAttr, gLowerAttr, bLowerAttr);
+                renderableLayer.addRenderable(lowerTrigon);
+            }
+
+        }
+
+        return renderableLayer;
+    }
+
+    private RenderableLayer DEMRenderer(){
+        RenderableLayer layer;
+        switch (fieldLayer.getBands(0).getElementType()){
+            case GridNode:
+                layer = NodeRenderer();
+                break;
+            case GridEdge:
+                layer = EdgeRenderer();
+                break;
+            case GridCell:
+                layer = CellRenderer();
+                break;
+            default:
+                layer = null;
+                break;
+        }
+
+        return layer;
+    }
+
+    private RenderableLayer NodeRenderer(){
+        final FieldBand band = fieldLayer.getBands(0);
         if(null == band)
             return null;
 
         RenderableLayer layer = new RenderableLayer();
-        layer.setName(fieldLayer.getName() + "_band" + (bandID + 1));
+        layer.setName(fieldLayer.getName());
         layer.setPickEnabled(false);
         double elevation = 30000.;
 
@@ -109,13 +174,13 @@ public class FieldRenderer extends BaseRenderer {
         return layer;
     }
 
-    private RenderableLayer EdgeRenderer(int bandID){
-        final FieldBand band = fieldLayer.getBands(bandID);
+    private RenderableLayer EdgeRenderer(){
+        final FieldBand band = fieldLayer.getBands(0);
         if(null == band)
             return null;
 
         RenderableLayer layer = new RenderableLayer();
-        layer.setName(fieldLayer.getName() + "_band" + (bandID + 1));
+        layer.setName(fieldLayer.getName());
         layer.setPickEnabled(false);
         double elevation = 30000.;
 
@@ -171,13 +236,13 @@ public class FieldRenderer extends BaseRenderer {
         return layer;
     }
 
-    private RenderableLayer CellRenderer(int bandID){
-        final FieldBand band = fieldLayer.getBands(bandID);
+    private RenderableLayer CellRenderer(){
+        final FieldBand band = fieldLayer.getBands(0);
         if(null == band)
             return null;
 
         RenderableLayer layer = new RenderableLayer();
-        layer.setName(fieldLayer.getName() + "_band" + (bandID + 1));
+        layer.setName(fieldLayer.getName());
         layer.setPickEnabled(false);
         double elevation = 30000.;
 
@@ -237,6 +302,19 @@ public class FieldRenderer extends BaseRenderer {
             shape.setVisible(true);
             ((Path) shape).setPathType(AVKey.GREAT_CIRCLE);
         }
+        shape.setAttributes(attributes);
+        shape.setAltitudeMode(WorldWind.RELATIVE_TO_GROUND);
+    }
+
+    private void SetDefaultMaterial(AbstractShape shape, int r, int g, int b){
+        if(r > 255 || g > 255 || b > 255){
+            r = g = b = 255;
+        }
+
+        Color color = new Color(r, g, b);
+        ShapeAttributes attributes = new BasicShapeAttributes();
+        attributes.setDrawOutline(false);
+        attributes.setInteriorMaterial(new Material(color));
         shape.setAttributes(attributes);
         shape.setAltitudeMode(WorldWind.RELATIVE_TO_GROUND);
     }

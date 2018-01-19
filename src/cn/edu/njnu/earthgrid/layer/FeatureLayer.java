@@ -1,7 +1,7 @@
 package cn.edu.njnu.earthgrid.layer;
 
 import cn.edu.njnu.earthgrid.core.codes.BaseCode;
-import cn.edu.njnu.earthgrid.feature.Extend;
+import cn.edu.njnu.earthgrid.feature.Extent;
 import cn.edu.njnu.earthgrid.feature.Feature;
 import cn.edu.njnu.earthgrid.feature.FeatureClass;
 
@@ -27,7 +27,7 @@ public class FeatureLayer extends BaseLayer {
     /**
      * enveloping rectangle of layer
      */
-    private Extend ext;
+    private Extent ext;
 
     /**
      * Constructor
@@ -64,11 +64,11 @@ public class FeatureLayer extends BaseLayer {
         this.features = features;
     }
 
-    public Extend getExtend() {
+    public Extent getExtend() {
         return ext;
     }
 
-    public void setExtend(Extend ext) {
+    public void setExtend(Extent ext) {
         this.ext = ext;
     }
 

@@ -1,9 +1,6 @@
 package cn.edu.njnu.earthgrid.core.codes;
 
-import cn.edu.njnu.earthgrid.core.geometry.CartesianCoord;
-import cn.edu.njnu.earthgrid.core.geometry.DiamondBlock;
-import cn.edu.njnu.earthgrid.core.geometry.MathUtil;
-import cn.edu.njnu.earthgrid.core.geometry.SpericalCoord;
+import cn.edu.njnu.earthgrid.core.geometry.*;
 
 /**
  * Extended QTM Grid Code
@@ -14,18 +11,6 @@ import cn.edu.njnu.earthgrid.core.geometry.SpericalCoord;
 public class EQCode extends BaseCode {
 
     /**
-     * the domain of this EQTM code located in
-     * note: 0-9 for cell and edge
-     *       but for node 10 for north pole and 11 for south pole
-     */
-    private int domainID;
-
-    /**
-     * the level of this EQTM code
-     */
-    private int level;
-
-    /**
      * the morton code within domain
      */
     private long morton;
@@ -34,9 +19,7 @@ public class EQCode extends BaseCode {
      * default Constructor
      */
     public EQCode() {
-        super(CodeType.EQCode, -1);
-        this.domainID = -1;
-        this.level = -1;
+        super(CodeType.EQCode, -1, -1, -1);
         this.morton = -1;
     }
 
@@ -49,56 +32,18 @@ public class EQCode extends BaseCode {
      * @param morton      the morton code within domain
      */
     public EQCode(int domainID, int elementCode, int level, long morton) {
-        super(CodeType.EQCode, elementCode);
-        this.domainID = domainID;
-        this.level = level;
+        super(CodeType.EQCode, domainID, elementCode, level);
         this.morton = morton;
     }
 
     /**
      * copy Constructor
+     *
      * @param code
      */
     public EQCode(EQCode code) {
-        super(CodeType.EQCode, code.getElementCode());
-        this.domainID = code.getDomainID();
-        this.level = code.getLevel();
+        super(CodeType.EQCode, code.getDomainID(), code.getElementCode(), code.getLevel());
         this.morton = code.getMorton();
-    }
-    /**
-     * get domain id of this EQTM code
-     *
-     * @return domain id
-     */
-    public final int getDomainID() {
-        return this.domainID;
-    }
-
-    /**
-     * set domain id of this EQTM code
-     *
-     * @param domainID value of doamin id
-     */
-    public void setDomainID(int domainID) {
-        this.domainID = domainID;
-    }
-
-    /**
-     * get level of this EQTM code
-     *
-     * @return level
-     */
-    public final int getLevel() {
-        return this.level;
-    }
-
-    /**
-     * set level of this EQTM code
-     *
-     * @param level value of level
-     */
-    public void setLevel(int level) {
-        this.level = level;
     }
 
     /**
@@ -147,24 +92,30 @@ public class EQCode extends BaseCode {
     @Override
     public SpericalCoord toSpericalCoord() {
         // check pole
-        if (domainID == 10) {      // north pole
+        if (getDomainID() == 10) {      // north pole
             return new SpericalCoord(0., 90.);
-        } else if (domainID == 11) {    //south pole
+        } else if (getDomainID() == 11) {    //south pole
             return new SpericalCoord(0., -90.);
         }
 
-        CartesianCoord v0 = new CartesianCoord();
-        CartesianCoord v1 = new CartesianCoord();
-        CartesianCoord v2 = new CartesianCoord();
-        CartesianCoord v3 = new CartesianCoord();
-        MathUtil.GetDomainCorner(this.domainID, v0, v1, v2, v3);      //wait to debug, maybe error
-
-        DiamondBlock d = new DiamondBlock(v0, v1, v2, v3);
-        MathUtil.GetDiamond(d, this.morton, this.level);
+        DiamondBlock d = toDiamond();
 
         CartesianCoord cc = MathUtil.GetDiamondElement(d, this.getElementCode());
         SpericalCoord sc = CartesianCoord.ToSpericalCoord(cc);
         return sc;
+    }
+
+    @Override
+    public Trigon toTrigon() {
+        DiamondBlock d = toDiamond();
+
+        if (4 == getElementCode()) {
+            return new Trigon(d.v(0), d.v(1), d.v(3));
+        } else if (5 == getElementCode()) {
+            return new Trigon(d.v(2), d.v(1), d.v(3));
+        }
+
+        return null;
     }
 
     /**
@@ -174,9 +125,9 @@ public class EQCode extends BaseCode {
      */
     public DiamondBlock toDiamond() {
         // check pole
-        if (domainID == 10) {      // north pole
+        if (getDomainID() == 10) {      // north pole
             return null;
-        } else if (domainID == 11) {    //south pole
+        } else if (getDomainID() == 11) {    //south pole
             return null;
         }
 
@@ -184,13 +135,14 @@ public class EQCode extends BaseCode {
         CartesianCoord v1 = new CartesianCoord();
         CartesianCoord v2 = new CartesianCoord();
         CartesianCoord v3 = new CartesianCoord();
-        MathUtil.GetDomainCorner(this.domainID, v0, v1, v2, v3);      //wait to debug, maybe error
+        MathUtil.GetDomainCorner(getDomainID(), v0, v1, v2, v3);
 
         DiamondBlock d = new DiamondBlock(v0, v1, v2, v3);
-        MathUtil.GetDiamond(d, this.morton, this.level);
+        MathUtil.GetDiamond(d, this.morton, this.getLevel());
 
         return d;
     }
+
 
     /**
      * convert lat/lon into EQTM code.
@@ -201,40 +153,56 @@ public class EQCode extends BaseCode {
      */
     @Override
     public void fromSpericalCoord(SpericalCoord sc, int level, ElementType ele) {
-
-        this.level = level;
+        this.setLevel(level);
 
         //check pole
         if (ele == ElementType.GridNode) {
             if (Math.abs(sc.getLatitude() - 90.0) <= MathUtil.EPS) { // north pole
+                this.setDomainID(10);
                 this.setElementCode(0);
-                this.domainID = 10;
                 this.morton = 0;
                 return;
             }
 
             if (Math.abs(sc.getLatitude() + 90.0) <= MathUtil.EPS) { // south pole
+                this.setDomainID(11);
                 this.setElementCode(0);
-                this.domainID = 11;
                 this.morton = 0;
                 return;
             }
         }
 
         CartesianCoord cc = CartesianCoord.FromSpericalCoord(sc);
-        this.domainID = MathUtil.PredictDomain(cc);
+        this.setDomainID(MathUtil.PredictDomain(cc));
 
         CartesianCoord v0 = new CartesianCoord();
         CartesianCoord v1 = new CartesianCoord();
         CartesianCoord v2 = new CartesianCoord();
         CartesianCoord v3 = new CartesianCoord();
-        MathUtil.GetDomainCorner(this.domainID, v0, v1, v2, v3);      //wait to debug, maybe error
+        MathUtil.GetDomainCorner(this.getDomainID(), v0, v1, v2, v3);      //wait to debug, maybe error
 
         DiamondBlock d = new DiamondBlock(v0, v1, v2, v3);
         //get morton
         long temp = 0;
-        this.morton = MathUtil.CalcMorton(temp, cc, d, this.level);
+        this.morton = MathUtil.CalcMorton(temp, cc, d, this.getLevel());
 
         this.setElementCode(MathUtil.CalcType(cc, d, ele));
+    }
+
+    @Override
+    public String toString() {
+        String domStr = MathUtil.DecimalToBinary(getDomainID(), 4);
+        String typeStr = MathUtil.DecimalToBinary(getElementCode(), 4);
+        String mortonStr = MathUtil.DecimalToQuaternary(getMorton(), getLevel());
+
+        return domStr + typeStr + mortonStr;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof EQCode))
+            return false;
+
+        return super.equals(obj) && this.morton == ((EQCode) obj).morton;
     }
 }

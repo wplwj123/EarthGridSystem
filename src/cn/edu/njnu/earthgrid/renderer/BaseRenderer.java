@@ -14,5 +14,5 @@ public abstract class BaseRenderer {
      *
      * @return
      */
-    public abstract RenderableLayer[] getWWRenderableLayer();
+    public abstract RenderableLayer getWWRenderableLayer();
 }

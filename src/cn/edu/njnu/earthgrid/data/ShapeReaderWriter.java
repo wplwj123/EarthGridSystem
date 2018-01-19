@@ -1,6 +1,7 @@
 package cn.edu.njnu.earthgrid.data;
 
 import cn.edu.njnu.earthgrid.core.codes.BaseCode;
+import cn.edu.njnu.earthgrid.core.codes.EHCode;
 import cn.edu.njnu.earthgrid.core.codes.EQCode;
 import cn.edu.njnu.earthgrid.core.codes.ElementType;
 import cn.edu.njnu.earthgrid.core.geometry.SpericalCoord;
@@ -10,6 +11,8 @@ import cn.edu.njnu.earthgrid.layer.BaseLayer;
 import cn.edu.njnu.earthgrid.layer.FeatureLayer;
 import org.gdal.gdal.gdal;
 import org.gdal.ogr.*;
+
+import java.util.ArrayList;
 
 /**
  * DataIO
@@ -21,16 +24,21 @@ import org.gdal.ogr.*;
 public class ShapeReaderWriter {
 
 
-    private static int level = 5;
-    private static BaseCode.CodeType codeType = BaseCode.CodeType.EQCode;
+    private int level = 8;
+    private BaseCode.CodeType codeType = BaseCode.CodeType.EQCode;
 
     /**
      * read shapefile and convert to grid feature layer
      *
      * @param fileName
+     * @param featureCodeType
+     * @param featureCodeLevel
      * @return
      */
-    public static FeatureLayer ReadShapefile(String fileName){
+    public FeatureLayer ReadShapefile(String fileName, BaseCode.CodeType featureCodeType, int featureCodeLevel){
+
+        level = featureCodeLevel;
+        codeType = featureCodeType;
 
         // register all ogr driver
         ogr.RegisterAll();
@@ -72,7 +80,7 @@ public class ShapeReaderWriter {
         }
 
         double[] oExt = oLayer.GetExtent();
-        Extend ext = new Extend(oExt[0], oExt[1], oExt[2], oExt[3]);
+        Extent ext = getCodeExtent(oExt);
         featureLayer.setExtend(ext);
 
         org.gdal.ogr.Feature oFeature;
@@ -97,7 +105,7 @@ public class ShapeReaderWriter {
             }
         }
 
-        gdal.GDALDestroyDriverManager();
+        dataSource.delete();
 
         return featureLayer;
     }
@@ -108,7 +116,7 @@ public class ShapeReaderWriter {
      * @param oDefn
      * @return
      */
-    private static FeatureClass getFeatureClass(FeatureDefn oDefn){
+    private FeatureClass getFeatureClass(FeatureDefn oDefn){
         int geomType = oDefn.GetGeomType();
 
         ShapeType shapeType = ShapeType.Unknown;
@@ -129,7 +137,7 @@ public class ShapeReaderWriter {
                 assert false;
                 break;
         }
-        FeatureClass featureClass = new FeatureClass(FeatureType.SimpleFeature, shapeType);
+        FeatureClass featureClass = new FeatureClass(shapeType);
 
         //read and add field to featureclass
         for(int i = 0; i < oDefn.GetFieldCount(); ++i){
@@ -138,6 +146,7 @@ public class ShapeReaderWriter {
             Field.FieldType fieldType = Field.FieldType.FieldUnknown;
             switch (oField.GetFieldType()){
                 case ogr.OFTInteger:
+                case ogr.OFTInteger64:
                     fieldType = Field.FieldType.FieldInt;
                     break;
                 case ogr.OFTString:
@@ -147,7 +156,6 @@ public class ShapeReaderWriter {
                     fieldType = Field.FieldType.FieldReal;
                     break;
                 default:
-                    assert false;
                     break;
             }
 
@@ -158,7 +166,22 @@ public class ShapeReaderWriter {
         return featureClass;
     }
 
-    private static Feature getFeature(org.gdal.ogr.Feature oFeature, int iGeom , FeatureClass featureClass){
+    /**
+     * get code Extend by lon/lat Extent
+     *
+     * @param oExt minLon, maxLon, minLat, maxLat
+     * @return
+     */
+    private Extent getCodeExtent(double[] oExt){
+        Point topleft = new Point(SpericalCoord.ToCode(new SpericalCoord(oExt[0], oExt[3]), level, codeType, ElementType.GridCell));
+        Point topright = new Point(SpericalCoord.ToCode(new SpericalCoord(oExt[1], oExt[3]), level, codeType, ElementType.GridCell));
+        Point botleft = new Point(SpericalCoord.ToCode(new SpericalCoord(oExt[0], oExt[2]), level, codeType, ElementType.GridCell));
+        Point botright = new Point(SpericalCoord.ToCode(new SpericalCoord(oExt[1], oExt[2]), level, codeType, ElementType.GridCell));
+
+        return new Extent(topleft, topright, botleft, botright);
+    }
+
+    private Feature getFeature(org.gdal.ogr.Feature oFeature, int iGeom , FeatureClass featureClass){
         Feature feature = featureClass.CreatFeature();
 
         //get fields
@@ -187,7 +210,7 @@ public class ShapeReaderWriter {
         return feature;
     }
 
-    private static Feature getFeature(org.gdal.ogr.Feature oFeature, FeatureClass featureClass){
+    private Feature getFeature(org.gdal.ogr.Feature oFeature, FeatureClass featureClass){
         Feature feature = featureClass.CreatFeature();
 
         //get fields
@@ -216,7 +239,7 @@ public class ShapeReaderWriter {
         return feature;
     }
 
-    private static Polygon getPolygon(org.gdal.ogr.Geometry oGeometry){
+    private Polygon getPolygon(org.gdal.ogr.Geometry oGeometry){
         int ringCount = oGeometry.GetGeometryCount();
         if(0 >= ringCount){
             return null;
@@ -226,7 +249,7 @@ public class ShapeReaderWriter {
 
         double[] oExt = new double[4];
         oGeometry.GetEnvelope(oExt);
-        polygon.setExtend(new Extend(oExt[0], oExt[1], oExt[2], oExt[3]));
+        polygon.setExtend(getCodeExtent(oExt));
 
         org.gdal.ogr.Geometry oExteriorRing = oGeometry.GetGeometryRef(0);
         Polyline exteriorRing = getPolyline(oExteriorRing);
@@ -243,35 +266,50 @@ public class ShapeReaderWriter {
         return  polygon;
     }
 
-    private static Polyline getPolyline(org.gdal.ogr.Geometry oGeometry){
+    private Polyline getPolyline(org.gdal.ogr.Geometry oGeometry){
         Polyline polyline = new Polyline();
         double[] oExt = new double[4];
         oGeometry.GetEnvelope(oExt);
-        polyline.setExtend(new Extend(oExt[0], oExt[1], oExt[2], oExt[3]));
+        polyline.setExtend(getCodeExtent(oExt));
 
+        ArrayList<BaseCode> codes = new ArrayList<>();
+        double lon, lat;
         for(int i = 0; i < oGeometry.GetPointCount(); ++i){
-            double lon = oGeometry.GetX(i);
-            double lat = oGeometry.GetY(i);
+            lon = oGeometry.GetX(i);
+            lat = oGeometry.GetY(i);
 
-            EQCode code = new EQCode();
+            BaseCode code;
+            if(codeType == BaseCode.CodeType.EQCode)
+                code = new EQCode();
+            else
+                code = new EHCode();
+
             code.fromSpericalCoord(new SpericalCoord(lon, lat), level, ElementType.GridCell);
-            Point point = new Point(code);
 
-            polyline.addPoint(point);
+            if(!codes.contains(code) || (i == oGeometry.GetPointCount() - 1)){
+                codes.add(code);
+                Point point = new Point(code);
+                polyline.addPoint(point);
+            }
         }
 
         return polyline;
     }
 
-    private static Point getPoint(org.gdal.ogr.Geometry oGeometry){
+    private Point getPoint(org.gdal.ogr.Geometry oGeometry){
         double lon = oGeometry.GetX();
         double lat = oGeometry.GetY();
 
-        EQCode code = new EQCode();
+        BaseCode code;
+        if(codeType == BaseCode.CodeType.EQCode)
+            code = new EQCode();
+        else
+            code = new EHCode();
+
         code.fromSpericalCoord(new SpericalCoord(lon, lat), level, ElementType.GridCell);
 
         return new Point(code);
     }
 
-    public static void WriteShapefile(FeatureLayer layer, String fileName){}
+    public void WriteShapefile(FeatureLayer layer, String fileName){}
 }

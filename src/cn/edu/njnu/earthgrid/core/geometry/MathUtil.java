@@ -1,8 +1,16 @@
 package cn.edu.njnu.earthgrid.core.geometry;
 
+import cn.edu.njnu.earthgrid.core.codes.BaseCode;
+import cn.edu.njnu.earthgrid.core.codes.EQCode;
 import cn.edu.njnu.earthgrid.core.codes.ElementType;
+import cn.edu.njnu.earthgrid.feature.Point;
+import cn.edu.njnu.earthgrid.feature.Polygon;
+import cn.edu.njnu.earthgrid.feature.Polyline;
 
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Spatial Geometry Calculation
@@ -866,6 +874,9 @@ public class MathUtil {
         return Normalize(inter, RADIUS);
     }
 
+    /**——————————————————util for geometric calculation————————————————————**/
+    /*********************************************************************************************************/
+
     /**
      * math power for long
      *
@@ -879,9 +890,6 @@ public class MathUtil {
         }
         return base * Pow(base, exp - 1);
     }
-
-    /**——————————————————util for geometric calculation————————————————————**/
-    /*********************************************************************************************************/
 
     public static double Gauss(float x, double y0, double a, double x0, double b) {
         double temp = y0 + a * Math.exp(-(x0 - x) * (x0 - x) / (2 * b * b));
@@ -905,6 +913,282 @@ public class MathUtil {
         b = Gauss(gray, -.05837, 1.05992, 0.28797, 0.39754);
 
         return new Color((int)(r * 255), (int)(g * 255), (int)(b * 255));
+    }
+
+    /*********************************************************************************************************/
+
+    /**
+     * get code of middle point between code1 and code2
+     *
+     * @param code1
+     * @param code2
+     * @return
+     */
+    public static BaseCode MidCode(BaseCode code1, BaseCode code2){
+        CartesianCoord c1 = CartesianCoord.FromSpericalCoord(code1.toSpericalCoord());
+        CartesianCoord c2 = CartesianCoord.FromSpericalCoord(code2.toSpericalCoord());
+
+        SpericalCoord mid = CartesianCoord.ToSpericalCoord(MidGreatArc(c1, c2));
+
+        BaseCode code = SpericalCoord.ToCode(mid, code1.getLevel(), code1.getCodeType(), code1.getElementType());
+
+        if(code1.equals(code) || code2.equals(code))
+            return null;
+        return code;
+    }
+
+    /**
+     * get all code in line
+     *
+     * @param start
+     * @param end
+     * @param codes
+     */
+    public static void getCodesInLine(BaseCode start, BaseCode end, ArrayList<BaseCode> codes){
+        BaseCode midcode = MidCode(start, end);
+
+        if(null == midcode){
+            codes.add(start);
+            return;
+        }
+        else {
+            getCodesInLine(start, midcode, codes);
+            getCodesInLine(midcode, end, codes);
+        }
+    }
+
+    /**
+     * get all code in polyline
+     *
+     * @param polyline
+     * @return
+     */
+    public static ArrayList<BaseCode> getCodesInPolyline(Polyline polyline){
+        ArrayList<BaseCode> codes = new ArrayList<>();
+
+        for(int pointID = 0; pointID < polyline.getPointNum() - 1; ++pointID){
+            BaseCode start = polyline.getPoint(pointID).getPosition();
+            BaseCode end = polyline.getPoint(pointID + 1).getPosition();
+            MathUtil.getCodesInLine(start, end, codes);
+        }
+
+        return codes;
+    }
+
+    /**
+     * test two line intersect
+     *
+     * @param startA lineA start point
+     * @param endA  lineB end point
+     * @param startB lineB start point
+     * @param endB lineB end point
+     * @return
+     */
+    public static boolean isLineIntersect(SpericalCoord startA, SpericalCoord endA,
+                                          SpericalCoord startB, SpericalCoord endB){
+        double x1 = startA.getLongitude();
+        double y1 = startA.getLatitude();
+        double x2 = endA.getLongitude();
+        double y2 = endA.getLatitude();
+        double x3 = startB.getLongitude();
+        double y3 = startB.getLatitude();
+        double x4 = endB.getLongitude();
+        double y4 = endB.getLatitude();
+        double result = (x2 - x1)*(y4 - y3) - (x4 - x3)*(y2 - y1);
+        if (Math.abs(result) > EPS )      //result
+        {
+            double G_x1y1 = (y1 - y3)*(x4 - x3) - (y4 - y3)*(x1 - x3);
+            double G_x2y2 = (y2 - y3)*(x4 - x3) - (y4 - y3)*(x2 - x3);
+            double F_x3y3 = (y3 - y1)*(x2 - x1) - (y2 - y1)*(x3 - x1);
+            double F_x4y4 = (y4 - y1)*(x2 - x1) - (y2 - y1)*(x4 - x1);
+            if (F_x3y3*F_x4y4 <= 0 && G_x1y1*G_x2y2 <= 0)
+                return true;
+            else
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    /**
+     * get intersection number between line and this polygon
+     *
+     * @param lineStart
+     * @param lineEnd
+     * @return
+     */
+    public static int GetIntersectNum(Polygon polygon, SpericalCoord lineStart, SpericalCoord lineEnd){
+        SpericalCoord segStart, segEnd;
+        int intersectCount = 0;
+
+        ArrayList<SpericalCoord> extRingPoints = new ArrayList<>();
+        Set<Integer> domainSet = new HashSet<>();
+        DecodePolyline(polygon.getExteriorRing(), extRingPoints, domainSet);
+
+        for(int pointID = 0; pointID < polygon.getExteriorRing().getPointNum() - 1; ++pointID){
+            segStart = extRingPoints.get(pointID);
+            segEnd = extRingPoints.get(pointID + 1);
+
+            if(MathUtil.isLineIntersect(lineStart, lineEnd, segStart, segEnd))
+                ++intersectCount;
+        }
+
+        for(int ringID = 0; ringID < polygon.getRingNum() - 1; ++ringID){
+            Polyline innerRing = polygon.getInnerRing(ringID);
+            ArrayList<SpericalCoord> innRingPoints = new ArrayList<>();
+            DecodePolyline(innerRing, innRingPoints, domainSet);
+
+            for(int pointID = 0; pointID < innerRing.getPointNum() - 1; ++pointID){
+                segStart = innRingPoints.get(pointID);
+                segEnd = innRingPoints.get(pointID + 1);
+
+                if(MathUtil.isLineIntersect(lineStart, lineEnd, segStart, segEnd))
+                    ++intersectCount;
+            }
+        }
+
+        return intersectCount;
+    }
+
+    /**
+     * test point sc to the left of line
+     *
+     * @param sc
+     * @param start line start point
+     * @param end line end point
+     * @return >0 if sc to the left of left
+     *          =0 if in line
+     *          <0 if right side
+     */
+    public static double PointLeftLine(SpericalCoord sc, SpericalCoord start, SpericalCoord end){
+        return ((end.getLongitude() - start.getLongitude()) * (sc.getLatitude() - start.getLatitude())
+                - (end.getLatitude() - start.getLatitude()) * (sc.getLongitude() - start.getLongitude()));
+    }
+
+    public static boolean Contain(ArrayList<SpericalCoord> ringPoints, SpericalCoord sc){
+        int wn = 0;
+        SpericalCoord sc1, sc2;
+
+        for(int pointID = 0; pointID < ringPoints.size() - 1; ++pointID){
+            sc1 = ringPoints.get(pointID);
+            sc2 = ringPoints.get(pointID + 1);
+
+            if (sc1.getLatitude() <= sc.getLatitude()) {
+                if (sc2.getLatitude() > sc.getLatitude()) { // upward
+                    if (PointLeftLine(sc, sc1, sc2) > 0) {
+                        ++wn;
+                    }
+                }
+            }
+            else {
+                if (sc2.getLatitude() <= sc.getLatitude()) { // downward
+                    if (PointLeftLine(sc, sc1, sc2) < 0) {
+                        --wn;
+                    }
+                }
+            }
+        }
+
+        if (wn == 0)
+            return false;
+        else
+            return true;
+    }
+
+    /**
+     * test polygon contains a lon/lat point, using Winding Number Method
+     *
+     * @param polygon
+     * @param sc
+     * @return
+     * @see "http://geomalgorithms.com/a03-_inclusion.html"
+     */
+    public static boolean Contain(Polygon polygon, SpericalCoord sc){
+        if(!polygon.getExtend().Contains(sc))
+            return false;
+
+        if(polygon.getExteriorRing().getPointNum() <= 3)
+            return false;
+
+        SpericalCoord sc1, sc2;
+
+        ArrayList<SpericalCoord> extRingPoints = new ArrayList<>();
+        Set<Integer> domainSet = new HashSet<>();
+        DecodePolyline(polygon.getExteriorRing(), extRingPoints, domainSet);
+
+        if(!Contain(extRingPoints, sc))
+            return false;
+
+        for(int ringID = 0; ringID < polygon.getRingNum() - 1; ++ringID){
+            Polyline innerRing = polygon.getInnerRing(ringID);
+
+            ArrayList<SpericalCoord> innRingPoints = new ArrayList<>();
+            DecodePolyline(innerRing, innRingPoints, domainSet);
+
+            if(Contain(innRingPoints, sc))
+                return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * test polygon contains a code, using Winding Number Method
+     *
+     * @param polygon
+     * @param code
+     * @return
+     */
+    public static boolean Contain(Polygon polygon, BaseCode code){
+        SpericalCoord sc = code.toSpericalCoord();
+        return Contain(polygon, sc);
+    }
+
+    /**
+     * test polygon contains a point, using Winding Number Method
+     *
+     * @param polygon
+     * @param point
+     * @return
+     */
+    public static boolean Contain(Polygon polygon, Point point){
+        if(!polygon.getExtend().Contains(point))
+            return false;
+        BaseCode code = point.getPosition();
+
+        return Contain(polygon, code);
+    }
+
+    /**
+     * decode all points in polyline
+     *
+     * @param polyline
+     * @param points
+     * @param domainSet
+     */
+    public static void DecodePolyline(Polyline polyline, ArrayList<SpericalCoord> points, Set<Integer> domainSet){
+        SpericalCoord scCur, scPre;
+
+        scPre = polyline.getPoint(0).getPosition().toSpericalCoord();
+        if(Math.abs(scPre.getLongitude() - 180d) < MathUtil.EPS){
+            scCur = polyline.getPoint(1).getPosition().toSpericalCoord();
+            if(scCur.getLatitude() > scPre.getLatitude())
+                scPre.setLongitude(-scPre.getLongitude());
+        }
+        points.add(scPre);
+        domainSet.add(polyline.getPoint(0).getPosition().getDomainID());
+
+        for (int i = 1; i < polyline.getPointNum(); ++i) {
+            scCur = polyline.getPoint(i).getPosition().toSpericalCoord();
+            if(Math.abs(scCur.getLongitude() - scPre.getLongitude()) > 350d)
+                scCur.setLongitude(-scCur.getLongitude());
+
+            points.add(scCur);
+            domainSet.add(polyline.getPoint(i).getPosition().getDomainID());
+            scPre = scCur;
+        }
     }
 
 }

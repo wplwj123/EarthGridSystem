@@ -1,6 +1,7 @@
 package cn.edu.njnu.earthgrid.core.codes;
 
 import cn.edu.njnu.earthgrid.core.geometry.SpericalCoord;
+import cn.edu.njnu.earthgrid.core.geometry.Trigon;
 
 /**
  * Extended Hexagon Grid Code
@@ -12,7 +13,7 @@ import cn.edu.njnu.earthgrid.core.geometry.SpericalCoord;
 public class EHCode extends BaseCode {
 
     public EHCode() {
-        super(CodeType.EHcode, -1);
+        super(CodeType.EHcode, -1, -1, -1);
     }
 
     @Override
@@ -30,5 +31,10 @@ public class EHCode extends BaseCode {
     @Override
     public final ElementType getElementType() {
         return ElementType.NoDef;
+    }
+
+    @Override
+    public Trigon toTrigon(){
+        return null;
     }
 }
